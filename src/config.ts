@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { pkgInfo } from './pkg.js';
 
 export type ClientId = 'claude' | 'cursor' | 'copilot' | 'codex';
 
@@ -36,7 +37,7 @@ export const CLIENT_LABELS: Record<ClientId, string> = {
 export function defaultInvocation(storeRoot?: string): Pick<InstallOptions, 'command' | 'args' | 'env'> {
   return {
     command: 'npx',
-    args: ['-y', 'project-memory-mcp', 'serve'],
+    args: ['-y', pkgInfo().name, 'serve'],
     env: storeRoot ? { MEMORY_MCP_ROOT: storeRoot } : undefined,
   };
 }

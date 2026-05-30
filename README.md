@@ -1,4 +1,4 @@
-# project-memory-mcp
+# coding-agent-memory-mcp
 
 > Portable, local-first, **markdown-based project memory** — one shared memory
 > store used across **Claude Code, GitHub Copilot, Cursor, and Codex** via the
@@ -21,14 +21,14 @@ versioned in git like everything else.
 ## Install
 
 ```bash
-npm install -g project-memory-mcp
+npm install -g coding-agent-memory-mcp
 # binaries: `memory-mcp` and the short alias `pmem`
 ```
 
 Or run without installing:
 
 ```bash
-npx -y project-memory-mcp <command>
+npx -y coding-agent-memory-mcp <command>
 ```
 
 ## Quick start
@@ -110,7 +110,7 @@ by hand:
 ```json
 {
   "mcpServers": {
-    "memory": { "command": "npx", "args": ["-y", "project-memory-mcp", "serve"] }
+    "memory": { "command": "npx", "args": ["-y", "coding-agent-memory-mcp", "serve"] }
   }
 }
 ```
@@ -119,7 +119,7 @@ by hand:
 ```json
 {
   "mcpServers": {
-    "memory": { "command": "npx", "args": ["-y", "project-memory-mcp", "serve"] }
+    "memory": { "command": "npx", "args": ["-y", "coding-agent-memory-mcp", "serve"] }
   }
 }
 ```
@@ -128,7 +128,7 @@ by hand:
 ```json
 {
   "servers": {
-    "memory": { "type": "stdio", "command": "npx", "args": ["-y", "project-memory-mcp", "serve"] }
+    "memory": { "type": "stdio", "command": "npx", "args": ["-y", "coding-agent-memory-mcp", "serve"] }
   }
 }
 ```
@@ -137,7 +137,7 @@ by hand:
 ```toml
 [mcp_servers.memory]
 command = "npx"
-args = ["-y", "project-memory-mcp", "serve"]
+args = ["-y", "coding-agent-memory-mcp", "serve"]
 ```
 
 Useful `install` flags:
@@ -178,7 +178,7 @@ All commands accept `-r, --root <dir>`.
 ## Programmatic API
 
 ```ts
-import { MemoryStore, resolveStoreDir } from 'project-memory-mcp';
+import { MemoryStore, resolveStoreDir } from 'coding-agent-memory-mcp';
 
 const store = new MemoryStore(resolveStoreDir());
 store.init();

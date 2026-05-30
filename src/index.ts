@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { MemoryStore } from './store.js';
 import { serveStdio } from './server.js';
 import { resolveStoreDir } from './util.js';
+import { pkgInfo } from './pkg.js';
 import {
   ALL_CLIENTS,
   CLIENT_LABELS,
@@ -15,7 +16,7 @@ import {
   type InstallOptions,
 } from './config.js';
 
-const VERSION = '0.1.0';
+const VERSION = pkgInfo().version;
 
 function storeFor(opts: { root?: string }): MemoryStore {
   return new MemoryStore(resolveStoreDir(opts.root));
@@ -263,7 +264,7 @@ program
   .option('--name <name>', 'Server name/key in the client config.', 'memory')
   .option('--command <cmd>', 'Override the launch command.')
   .option('--arg <arg>', 'Append a launch argument (repeatable).', (v: string, acc: string[]) => [...acc, v], [])
-  .option('--local', 'Use this installed binary directly instead of "npx -y project-memory-mcp".')
+  .option('--local', 'Use this installed binary directly instead of "npx -y <package>".')
   .option('--root <dir>', 'Bind the server to a specific .memory store (sets MEMORY_MCP_ROOT).')
   .option('--project <dir>', 'Project directory to write client configs into.', process.cwd())
   .option('--print', 'Show what would be written without modifying files.')

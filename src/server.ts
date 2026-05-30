@@ -3,9 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import type { MemoryStore } from './store.js';
 import type { IndexEntry, Memory, SearchResult } from './types.js';
-
-const PKG_NAME = 'project-memory-mcp';
-const PKG_VERSION = '0.1.0';
+import { pkgInfo } from './pkg.js';
 
 function text(value: string) {
   return { content: [{ type: 'text' as const, text: value }] };
@@ -44,8 +42,9 @@ function fullMemory(m: Memory): string {
  * callers connect it to stdio (CLI `serve`) or any other transport.
  */
 export function createServer(store: MemoryStore): McpServer {
+  const { name, version } = pkgInfo();
   const server = new McpServer(
-    { name: PKG_NAME, version: PKG_VERSION },
+    { name, version },
     {
       instructions:
         'Shared project memory. Use these tools to remember durable facts, ' +

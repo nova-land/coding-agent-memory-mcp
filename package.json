@@ -1,6 +1,6 @@
 {
   "name": "coding-agent-memory-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Portable, local-first, markdown-based project memory — a Model Context Protocol (MCP) server + CLI shared across Claude Code, GitHub Copilot, Cursor, and Codex.",
   "keywords": [
     "mcp",

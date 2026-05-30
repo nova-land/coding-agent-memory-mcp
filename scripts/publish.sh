@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Publish project-memory-mcp to npm.
+# Publish coding-agent-memory-mcp to npm.
 #
 # Usage:
 #   scripts/publish.sh                 # publish current version (patch by default prompt)
