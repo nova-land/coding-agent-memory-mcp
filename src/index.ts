@@ -80,6 +80,7 @@ program
   .option('-f, --file <path>', 'Read the body from a file.')
   .option('-t, --tags <list>', 'Comma-separated tags.')
   .option('-l, --links <list>', 'Comma-separated related memory ids.')
+  .option('-d, --dir <subfolder>', 'Subfolder under .memory/memories/ to store the file in.')
   .option('-s, --source <source>', 'Provenance label.', 'cli')
   .option('-r, --root <dir>', 'Path to the project or .memory directory.')
   .action((title: string, opts) => {
@@ -97,6 +98,7 @@ program
       tags: splitList(opts.tags),
       links: splitList(opts.links),
       source: opts.source,
+      folder: opts.dir,
     });
     console.log(`Added memory ${mem.id}\n${mem.file}`);
   });
@@ -244,6 +246,26 @@ program
     const store = storeFor(opts);
     const index = store.reindex();
     console.log(`Reindexed ${index.memories.length} memories at ${store.indexPath}`);
+  });
+
+// --- normalize --------------------------------------------------------------
+program
+  .command('normalize')
+  .description('Backfill canonical frontmatter (id, title, dates) into ad-hoc dropped-in files.')
+  .option('-w, --write', 'Write changes to disk (default is a dry run / preview).')
+  .option('-r, --root <dir>', 'Path to the project or .memory directory.')
+  .action((opts) => {
+    const store = storeFor(opts);
+    const report = store.normalize({ write: !!opts.write });
+    if (report.length === 0) {
+      console.log('All memories already have canonical frontmatter. Nothing to do.');
+      return;
+    }
+    console.log(opts.write ? 'Normalized:' : 'Would normalize (dry run — pass --write to apply):');
+    for (const r of report) {
+      console.log(`  ${r.file}\n    + ${r.filledFields.join(', ')}  →  id ${r.id} "${r.title}"`);
+    }
+    if (!opts.write) console.log('\nRe-run with --write to apply.');
   });
 
 // --- path -------------------------------------------------------------------

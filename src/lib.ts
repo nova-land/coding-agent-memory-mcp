@@ -2,8 +2,15 @@
 export { MemoryStore } from './store.js';
 export { createServer, serveStdio } from './server.js';
 export { searchMemories, makeExcerpt } from './search.js';
-export { parseMemory, serializeMemory } from './markdown.js';
-export { resolveStoreDir, generateId, slugify, normalizeTags } from './util.js';
+export { parseMemory, parseMemoryWithMeta, serializeMemory } from './markdown.js';
+export {
+  resolveStoreDir,
+  generateId,
+  deriveId,
+  deriveTitle,
+  slugify,
+  normalizeTags,
+} from './util.js';
 export {
   installClient,
   installClients,

@@ -58,14 +58,22 @@ Restart your AI tool after `install` so it picks up the new MCP server.
 
 ## How it's stored
 
-```
+```text
 your-repo/
 └── .memory/
     ├── index.json                 # derived search index (rebuildable)
     └── memories/
-        ├── use-postgres-for-persistence-01jabcd.md
-        └── prefer-feature-flags-01jefgh.md
+        ├── prefer-feature-flags-01jefgh.md
+        └── architecture/          # organize into subfolders (any depth)
+            └── use-postgres-01jabcd.md
 ```
+
+Memories may live directly under `memories/` **or in any nested subfolder** —
+the store scans recursively, so you can drop in
+`.memory/memories/{subdir}/{name}.md` by hand and it's picked up immediately
+(no reindex needed). Create into a subfolder with the CLI via
+`memory-mcp add "Title" --dir architecture`, or the `folder` argument on the
+`memory_create` MCP tool. Updating a memory keeps it in its current folder.
 
 Each memory file:
 
@@ -86,6 +94,29 @@ The markdown files are the **source of truth**; `index.json` is a cache you can
 rebuild anytime with `memory-mcp reindex`. Commit `.memory/` to git to share
 memory with your team.
 
+### Dropping in files that don't follow the format
+
+You can drop **any** markdown file into `memories/` — even with no frontmatter
+at all. The store tolerates it:
+
+- **Missing `id`** → a **stable id is derived from the file path** (prefixed
+  `D…`), so the memory is still uniquely addressable by `get`/`update`/`delete`
+  and never collides with other files.
+- **Missing `title`** → taken from the first `# heading`, else the filename.
+- **Missing `created`/`updated`** → filled from the file's own timestamps.
+
+So a bare `notes/idea.md` shows up in `list`/`search` immediately. To "adopt"
+such files into the canonical format — writing the derived id/title/dates back
+into the frontmatter **in place (no renaming)** — run:
+
+```bash
+memory-mcp normalize          # dry run: shows what would change
+memory-mcp normalize --write  # apply
+```
+
+(Or the `memory_normalize` MCP tool.) Normalizing is optional — un-normalized
+files keep working — but it makes ids permanent and explicit in git.
+
 ## MCP tools exposed
 
 When connected, the server exposes these tools to the AI agent:
@@ -99,6 +130,7 @@ When connected, the server exposes these tools to the AI agent:
 | `memory_delete` | Remove a memory |
 | `memory_list` | List memories, optionally by tag |
 | `memory_tags` | List all tags with counts |
+| `memory_normalize` | Backfill frontmatter into ad-hoc dropped-in files |
 | `memory_reindex` | Rebuild the search index |
 
 ## Client configuration
@@ -107,6 +139,7 @@ When connected, the server exposes these tools to the AI agent:
 by hand:
 
 **Claude Code** — `.mcp.json` (project root):
+
 ```json
 {
   "mcpServers": {
@@ -116,6 +149,7 @@ by hand:
 ```
 
 **Cursor** — `.cursor/mcp.json`:
+
 ```json
 {
   "mcpServers": {
@@ -125,6 +159,7 @@ by hand:
 ```
 
 **GitHub Copilot (VS Code)** — `.vscode/mcp.json`:
+
 ```json
 {
   "servers": {
@@ -134,6 +169,7 @@ by hand:
 ```
 
 **Codex CLI** — `~/.codex/config.toml`:
+
 ```toml
 [mcp_servers.memory]
 command = "npx"
@@ -158,7 +194,7 @@ The active `.memory` store is resolved in this order:
 
 ## CLI reference
 
-```
+```text
 memory-mcp serve                 Run the MCP server over stdio
 memory-mcp init                  Create the .memory store
 memory-mcp add <title> [opts]    Add a memory (--content/--file/stdin, --tags, --links)
@@ -168,6 +204,7 @@ memory-mcp get <id> [--json]
 memory-mcp update <id> [--title --content --file --tags --links]
 memory-mcp delete <id>           (alias: rm)
 memory-mcp tags [--json]
+memory-mcp normalize [--write]   Backfill frontmatter into ad-hoc dropped-in files
 memory-mcp reindex
 memory-mcp path                  Print resolved store directory
 memory-mcp install [clients...]  Configure MCP clients

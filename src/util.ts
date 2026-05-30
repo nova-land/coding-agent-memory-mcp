@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { basename, dirname, join, resolve } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
 import { STORE_DIR_NAME } from './types.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -23,6 +23,39 @@ export function generateId(now = Date.now()): string {
     rndStr += CROCKFORD[rnd[i] % 32];
   }
   return timeChars.join('') + rndStr;
+}
+
+/**
+ * Derive a stable, deterministic id from a seed string (typically a file's
+ * store-relative path). Used when a hand-dropped markdown file has no `id` in
+ * its frontmatter, so the memory is still uniquely addressable. The same seed
+ * always yields the same id; prefixed `d` so derived ids are visibly distinct
+ * from generated ULIDs.
+ */
+export function deriveId(seed: string): string {
+  const hash = createHash('sha256').update(seed).digest();
+  let out = 'D';
+  for (let i = 0; i < 25; i++) {
+    out += CROCKFORD[hash[i] % 32];
+  }
+  return out;
+}
+
+/**
+ * Best-effort human title for a file that lacks a frontmatter `title`:
+ * use the first markdown H1 heading, else a prettified filename.
+ */
+export function deriveTitle(content: string, file: string): string {
+  const heading = content.match(/^\s*#\s+(.+?)\s*$/m);
+  if (heading) return heading[1].trim();
+  const name = basename(file).replace(/\.md$/i, '');
+  // Strip a trailing "-<shortid>" suffix and turn separators into spaces.
+  const pretty = name
+    .replace(/-[a-z0-9]{6,}$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+  if (!pretty) return 'Untitled';
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1);
 }
 
 /** Turn a title into a filesystem-friendly slug. */

@@ -64,6 +64,8 @@ export interface CreateMemoryInput {
   source?: string;
   /** Optional explicit id; generated when omitted. */
   id?: string;
+  /** Optional subfolder under .memory/memories/ to organize the file into. */
+  folder?: string;
 }
 
 export interface UpdateMemoryInput {

@@ -1,6 +1,14 @@
 import matter from 'gray-matter';
 import type { Memory, MemoryFrontmatter } from './types.js';
-import { normalizeTags } from './util.js';
+import { deriveId, deriveTitle, normalizeTags } from './util.js';
+
+/** Which canonical frontmatter fields were absent and had to be derived. */
+export interface DerivedFields {
+  id: boolean;
+  title: boolean;
+  created: boolean;
+  updated: boolean;
+}
 
 /**
  * Serialize a memory to a markdown document with YAML frontmatter.
@@ -27,19 +35,49 @@ export function serializeMemory(mem: Memory): string {
  * recorded on the returned object for round-tripping.
  */
 export function parseMemory(raw: string, file: string): Memory {
+  return parseMemoryWithMeta(raw, file).memory;
+}
+
+/**
+ * Parse a markdown document, tolerating files that don't follow the canonical
+ * format. Missing `id` is derived deterministically from the file path; missing
+ * `title` falls back to the first H1 or the filename. Also reports which fields
+ * had to be derived so callers (e.g. `normalize`) can backfill them on disk.
+ */
+export function parseMemoryWithMeta(
+  raw: string,
+  file: string,
+): { memory: Memory; derived: DerivedFields } {
   const { data, content } = matter(raw);
   const fm = data as Partial<MemoryFrontmatter>;
   const now = new Date().toISOString();
-  return {
-    id: String(fm.id ?? ''),
-    title: String(fm.title ?? 'Untitled'),
+  const body = content.trim();
+
+  const hasId = fm.id !== undefined && String(fm.id).trim() !== '';
+  const hasTitle = fm.title !== undefined && String(fm.title).trim() !== '';
+  const hasCreated = fm.created !== undefined && String(fm.created).trim() !== '';
+  const hasUpdated = fm.updated !== undefined && String(fm.updated).trim() !== '';
+
+  const memory: Memory = {
+    id: hasId ? String(fm.id) : deriveId(file),
+    title: hasTitle ? String(fm.title) : deriveTitle(body, file),
     tags: normalizeTags(Array.isArray(fm.tags) ? fm.tags.map(String) : []),
     created: toIso(fm.created, now),
     updated: toIso(fm.updated, toIso(fm.created, now)),
     links: Array.isArray(fm.links) ? fm.links.map(String) : undefined,
     source: fm.source ? String(fm.source) : undefined,
-    content: content.trim(),
+    content: body,
     file,
+  };
+
+  return {
+    memory,
+    derived: {
+      id: !hasId,
+      title: !hasTitle,
+      created: !hasCreated,
+      updated: !hasUpdated,
+    },
   };
 }
 

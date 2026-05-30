@@ -68,6 +68,7 @@ export function createServer(store: MemoryStore): McpServer {
         content: z.string().describe('Markdown body of the memory.'),
         tags: z.array(z.string()).optional().describe('Tags for recall, e.g. ["architecture","api"].'),
         links: z.array(z.string()).optional().describe('Ids of related memories.'),
+        folder: z.string().optional().describe('Subfolder under .memory/memories/ to organize the file into, e.g. "architecture".'),
         source: z.string().optional().describe('Optional provenance (tool, url, file path).'),
       },
     },
@@ -77,6 +78,7 @@ export function createServer(store: MemoryStore): McpServer {
         content: args.content,
         tags: args.tags,
         links: args.links,
+        folder: args.folder,
         source: args.source ?? 'mcp',
       });
       return text(`Created memory ${mem.id} → ${mem.file}`);
@@ -200,6 +202,27 @@ export function createServer(store: MemoryStore): McpServer {
       const tags = store.tags();
       if (tags.length === 0) return text('No tags yet.');
       return json(tags);
+    },
+  );
+
+  server.registerTool(
+    'memory_normalize',
+    {
+      title: 'Normalize',
+      description:
+        'Adopt hand-dropped markdown files that lack proper frontmatter: backfill ' +
+        'missing id/title/created/updated in place (no renaming). Pass write=false ' +
+        'for a dry run.',
+      inputSchema: {
+        write: z.boolean().default(true).describe('Apply changes (true) or preview only (false).'),
+      },
+    },
+    async (args) => {
+      const report = store.normalize({ write: args.write });
+      if (report.length === 0) return text('All memories already canonical. Nothing to do.');
+      const verb = args.write ? 'Normalized' : 'Would normalize';
+      const lines = report.map((r) => `${r.file} → id ${r.id} (+${r.filledFields.join(', ')})`);
+      return text(`${verb} ${report.length} file(s):\n${lines.join('\n')}`);
     },
   );
 

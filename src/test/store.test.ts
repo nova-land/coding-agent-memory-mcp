@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MemoryStore } from '../store.js';
@@ -92,6 +92,80 @@ test('delete removes the memory', () => {
     assert.equal(store.delete(mem.id), true);
     assert.equal(store.get(mem.id), undefined);
     assert.equal(store.delete(mem.id), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('reads hand-dropped files from nested subfolders', () => {
+  const { store, dir } = freshStore();
+  try {
+    const nested = join(store.memoriesDir, 'architecture', 'db');
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(
+      join(nested, 'choice.md'),
+      '---\nid: NESTED1\ntitle: DB choice\ntags: [db]\n---\nPostgres, nested deep.\n',
+    );
+    const got = store.get('NESTED1');
+    assert.equal(got?.title, 'DB choice');
+    assert.ok(got?.file.includes('architecture'));
+    assert.equal(store.search('postgres').length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('create --folder places file in a subfolder; update keeps it there', () => {
+  const { store, dir } = freshStore();
+  try {
+    const mem = store.create({ title: 'Routing rules', content: 'x', folder: 'Frontend/UI' });
+    assert.match(mem.file, /memories\/frontend\/ui\//);
+    const updated = store.update(mem.id, { title: 'New routing rules' });
+    assert.match(updated.file, /memories\/frontend\/ui\//); // stayed in place
+    assert.equal(store.get(mem.id)?.title, 'New routing rules');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('no-frontmatter files get a stable, unique, derived id and title', () => {
+  const { store, dir } = freshStore();
+  try {
+    writeFileSync(join(store.memoriesDir, 'runbook.md'), '# Deploy runbook\n\nk8s rolling.\n');
+    writeFileSync(join(store.memoriesDir, 'note.md'), 'just a redis caching thought\n');
+    const all = store.readAll();
+    const ids = all.map((m) => m.id);
+    assert.equal(new Set(ids).size, 2, 'ids must be unique, not all empty');
+    assert.ok(ids.every((id) => id.length > 0));
+    // Stable across reads.
+    assert.deepEqual(store.readAll().map((m) => m.id).sort(), ids.sort());
+    // Title from first H1; addressable by derived id.
+    const runbook = all.find((m) => m.file.endsWith('runbook.md'))!;
+    assert.equal(runbook.title, 'Deploy runbook');
+    assert.equal(store.get(runbook.id)?.title, 'Deploy runbook');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('normalize backfills frontmatter in place without renaming', () => {
+  const { store, dir } = freshStore();
+  try {
+    const p = join(store.memoriesDir, 'raw-note.md');
+    writeFileSync(p, '# Caching strategy\n\nUse redis with TTL.\n');
+    const preview = store.normalize({ write: false });
+    assert.equal(preview.length, 1);
+    assert.deepEqual(preview[0].filledFields.sort(), ['created', 'id', 'title', 'updated']);
+    // Dry run did not touch the file.
+    assert.equal(readFileSync(p, 'utf8').startsWith('# Caching'), true);
+
+    store.normalize({ write: true });
+    const after = readFileSync(p, 'utf8');
+    assert.match(after, /^---/); // now has frontmatter
+    assert.match(after, /title: Caching strategy/);
+    assert.equal(existsSync(p), true); // same path, not renamed
+    // Second pass is a no-op now that it's canonical.
+    assert.equal(store.normalize({ write: false }).length, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
