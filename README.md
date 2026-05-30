@@ -63,23 +63,30 @@ your-repo/
 └── .memory/
     ├── index.json                 # derived search index (rebuildable)
     └── memories/
-        ├── prefer-feature-flags-01jefgh.md
-        └── architecture/          # organize into subfolders (any depth)
-            └── use-postgres-01jabcd.md
+        ├── prefer-feature-flags.md          # id: prefer-feature-flags
+        └── architecture/                    # organize into subfolders (any depth)
+            └── use-postgres.md              # id: architecture/use-postgres
 ```
+
+**A memory's id _is_ its path** under `memories/`, minus the `.md` extension
+(separators normalized to `/`). So `architecture/use-postgres.md` has the id
+`architecture/use-postgres`. This makes ids human-readable and **collision-free
+by construction** — the filesystem can't hold two files at the same path. There
+is no random suffix and **no `id` field in the frontmatter** (it would be
+redundant and could drift if the file moved).
 
 Memories may live directly under `memories/` **or in any nested subfolder** —
 the store scans recursively, so you can drop in
 `.memory/memories/{subdir}/{name}.md` by hand and it's picked up immediately
 (no reindex needed). Create into a subfolder with the CLI via
 `memory-mcp add "Title" --dir architecture`, or the `folder` argument on the
-`memory_create` MCP tool. Updating a memory keeps it in its current folder.
+`memory_create` MCP tool. Editing a memory never renames it, so its id stays
+stable across title changes.
 
 Each memory file:
 
 ```markdown
 ---
-id: 01JABCD2EF3GH4JK5MN6PQ7RS8
 title: Use Postgres for persistence
 tags: [architecture, database]
 created: 2026-05-30T18:00:00.000Z
@@ -99,15 +106,15 @@ memory with your team.
 You can drop **any** markdown file into `memories/` — even with no frontmatter
 at all. The store tolerates it:
 
-- **Missing `id`** → a **stable id is derived from the file path** (prefixed
-  `D…`), so the memory is still uniquely addressable by `get`/`update`/`delete`
-  and never collides with other files.
+- **id** → always the file path, so the memory is uniquely addressable by
+  `get`/`update`/`delete` the moment it lands, with zero chance of collision.
 - **Missing `title`** → taken from the first `# heading`, else the filename.
 - **Missing `created`/`updated`** → filled from the file's own timestamps.
 
-So a bare `notes/idea.md` shows up in `list`/`search` immediately. To "adopt"
-such files into the canonical format — writing the derived id/title/dates back
-into the frontmatter **in place (no renaming)** — run:
+So a bare `notes/idea.md` shows up in `list`/`search` immediately, addressable
+as id `notes/idea`. To "adopt" such files into the canonical format — writing
+the derived title/dates back into the frontmatter **in place (no renaming, so
+the id is unchanged)** — run:
 
 ```bash
 memory-mcp normalize          # dry run: shows what would change

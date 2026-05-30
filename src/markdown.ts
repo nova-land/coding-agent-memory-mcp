@@ -1,10 +1,9 @@
 import matter from 'gray-matter';
 import type { Memory, MemoryFrontmatter } from './types.js';
-import { deriveId, deriveTitle, normalizeTags } from './util.js';
+import { deriveTitle, fileToId, normalizeTags } from './util.js';
 
 /** Which canonical frontmatter fields were absent and had to be derived. */
 export interface DerivedFields {
-  id: boolean;
   title: boolean;
   created: boolean;
   updated: boolean;
@@ -16,8 +15,9 @@ export interface DerivedFields {
  * output stable, diff-friendly, and dependency-light.
  */
 export function serializeMemory(mem: Memory): string {
+  // Note: `id` is intentionally NOT written — a memory's id is its file path
+  // (see fileToId), so storing it would be redundant and could drift if moved.
   const fm: string[] = ['---'];
-  fm.push(`id: ${yamlScalar(mem.id)}`);
   fm.push(`title: ${yamlScalar(mem.title)}`);
   fm.push(`tags: ${yamlList(mem.tags)}`);
   // Quote timestamps so the YAML loader keeps them as strings (not Date objects).
@@ -40,9 +40,10 @@ export function parseMemory(raw: string, file: string): Memory {
 
 /**
  * Parse a markdown document, tolerating files that don't follow the canonical
- * format. Missing `id` is derived deterministically from the file path; missing
- * `title` falls back to the first H1 or the filename. Also reports which fields
- * had to be derived so callers (e.g. `normalize`) can backfill them on disk.
+ * format. The `id` is always the file path (see fileToId); a missing `title`
+ * falls back to the first H1 or the filename, and missing timestamps fall back
+ * to "now". Reports which writable fields were absent so callers (e.g.
+ * `normalize`) can backfill them on disk.
  */
 export function parseMemoryWithMeta(
   raw: string,
@@ -53,13 +54,13 @@ export function parseMemoryWithMeta(
   const now = new Date().toISOString();
   const body = content.trim();
 
-  const hasId = fm.id !== undefined && String(fm.id).trim() !== '';
   const hasTitle = fm.title !== undefined && String(fm.title).trim() !== '';
   const hasCreated = fm.created !== undefined && String(fm.created).trim() !== '';
   const hasUpdated = fm.updated !== undefined && String(fm.updated).trim() !== '';
 
   const memory: Memory = {
-    id: hasId ? String(fm.id) : deriveId(file),
+    // Identity comes from the path, not the frontmatter.
+    id: fileToId(file),
     title: hasTitle ? String(fm.title) : deriveTitle(body, file),
     tags: normalizeTags(Array.isArray(fm.tags) ? fm.tags.map(String) : []),
     created: toIso(fm.created, now),
@@ -73,7 +74,6 @@ export function parseMemoryWithMeta(
   return {
     memory,
     derived: {
-      id: !hasId,
       title: !hasTitle,
       created: !hasCreated,
       updated: !hasUpdated,

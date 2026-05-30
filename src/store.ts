@@ -7,7 +7,7 @@ import {
   existsSync,
   statSync,
 } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 import {
   INDEX_FILE_NAME,
   INDEX_VERSION,
@@ -19,7 +19,7 @@ import {
   type SearchResult,
   type UpdateMemoryInput,
 } from './types.js';
-import { generateId, normalizeTags, slugify } from './util.js';
+import { fileToId, normalizeTags, slugify } from './util.js';
 import { parseMemory, parseMemoryWithMeta, serializeMemory } from './markdown.js';
 import { searchMemories, toEntry, type SearchOptions } from './search.js';
 
@@ -99,23 +99,32 @@ export class MemoryStore {
   }
 
   /**
-   * Resolve the absolute file path for a memory, namespacing the slug with a
-   * short id. `baseDir` defaults to the memories root but may be a subfolder.
+   * Pick an available absolute path for a new memory: `<baseDir>/<slug>.md`,
+   * appending `-2`, `-3`, … only if needed to avoid overwriting an existing
+   * file. The resulting path defines the memory's id (see fileToId), so this is
+   * where collision-freedom is guaranteed.
    */
-  private fileFor(id: string, title: string, baseDir = this.memoriesDir): string {
-    const shortId = id.slice(0, 8).toLowerCase();
-    return join(baseDir, `${slugify(title)}-${shortId}.md`);
+  private allocatePath(title: string, baseDir: string): string {
+    const slug = slugify(title);
+    let abs = join(baseDir, `${slug}.md`);
+    let n = 2;
+    while (existsSync(abs)) {
+      abs = join(baseDir, `${slug}-${n}.md`);
+      n++;
+    }
+    return abs;
   }
 
   create(input: CreateMemoryInput): Memory {
     this.ensureDirs();
     const now = new Date().toISOString();
-    const id = input.id?.trim() || generateId();
-    if (this.get(id)) {
-      throw new Error(`A memory with id "${id}" already exists`);
-    }
+    const baseDir = this.safeFolder(input.folder);
+    mkdirSync(baseDir, { recursive: true });
+    const abs = this.allocatePath(input.title.trim() || 'untitled', baseDir);
+    const file = relative(this.root, abs);
+
     const mem: Memory = {
-      id,
+      id: fileToId(file),
       title: input.title.trim() || 'Untitled',
       tags: normalizeTags(input.tags),
       created: now,
@@ -123,12 +132,8 @@ export class MemoryStore {
       links: input.links && input.links.length ? input.links : undefined,
       source: input.source,
       content: input.content ?? '',
-      file: '',
+      file,
     };
-    const baseDir = this.safeFolder(input.folder);
-    mkdirSync(baseDir, { recursive: true });
-    const abs = this.fileFor(id, mem.title, baseDir);
-    mem.file = relative(this.root, abs);
     writeFileSync(abs, serializeMemory(mem), 'utf8');
     this.touchIndex(mem, 'upsert');
     return mem;
@@ -138,6 +143,8 @@ export class MemoryStore {
     const existing = this.get(id);
     if (!existing) throw new Error(`No memory found with id "${id}"`);
 
+    // The path (and therefore the id) is stable across edits — we never rename
+    // on a title change. Only the file's contents are rewritten in place.
     const updated: Memory = {
       ...existing,
       title: patch.title?.trim() ?? existing.title,
@@ -148,15 +155,8 @@ export class MemoryStore {
       updated: new Date().toISOString(),
     };
 
-    // If the title changed, the slug-based filename changes too; rename the
-    // file in place, preserving whatever subfolder it currently lives in.
-    const oldAbs = join(this.root, existing.file);
-    const newAbs = this.fileFor(id, updated.title, dirname(oldAbs));
-    updated.file = relative(this.root, newAbs);
-    writeFileSync(newAbs, serializeMemory(updated), 'utf8');
-    if (oldAbs !== newAbs && existsSync(oldAbs)) {
-      rmSync(oldAbs);
-    }
+    const abs = join(this.root, existing.file);
+    writeFileSync(abs, serializeMemory(updated), 'utf8');
     this.touchIndex(updated, 'upsert');
     return updated;
   }
@@ -245,10 +245,10 @@ export class MemoryStore {
 
   /**
    * Adopt ad-hoc / hand-dropped markdown files into the canonical format by
-   * backfilling any missing frontmatter (id, title, created, updated) in place,
-   * WITHOUT renaming the files. Missing timestamps are taken from the file's
-   * own birth/modified times. With `write: false` this is a dry run that just
-   * reports what would change.
+   * backfilling any missing frontmatter (title, created, updated) in place,
+   * WITHOUT renaming the files (the path — and thus the id — is preserved).
+   * Missing timestamps are taken from the file's own birth/modified times.
+   * With `write: false` this is a dry run that just reports what would change.
    */
   normalize(opts: { write?: boolean } = {}): NormalizeReport[] {
     const report: NormalizeReport[] = [];

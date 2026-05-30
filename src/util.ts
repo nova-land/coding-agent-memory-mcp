@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
-import { STORE_DIR_NAME } from './types.js';
+import { randomBytes } from 'node:crypto';
+import { MEMORIES_SUBDIR, STORE_DIR_NAME } from './types.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -26,19 +26,18 @@ export function generateId(now = Date.now()): string {
 }
 
 /**
- * Derive a stable, deterministic id from a seed string (typically a file's
- * store-relative path). Used when a hand-dropped markdown file has no `id` in
- * its frontmatter, so the memory is still uniquely addressable. The same seed
- * always yields the same id; prefixed `d` so derived ids are visibly distinct
- * from generated ULIDs.
+ * A memory's id IS its location: the path under `.memory/memories/` with the
+ * `.md` extension dropped and separators normalized to `/`. This makes ids
+ * human-readable (`architecture/db-choice`) and collision-free (the filesystem
+ * can't hold two files at the same path).
+ *
+ * @param storeRelFile path relative to the store root, e.g. `memories/foo/bar.md`
  */
-export function deriveId(seed: string): string {
-  const hash = createHash('sha256').update(seed).digest();
-  let out = 'D';
-  for (let i = 0; i < 25; i++) {
-    out += CROCKFORD[hash[i] % 32];
-  }
-  return out;
+export function fileToId(storeRelFile: string): string {
+  let p = storeRelFile.replace(/\\/g, '/');
+  const prefix = `${MEMORIES_SUBDIR}/`;
+  if (p.startsWith(prefix)) p = p.slice(prefix.length);
+  return p.replace(/\.md$/i, '');
 }
 
 /**

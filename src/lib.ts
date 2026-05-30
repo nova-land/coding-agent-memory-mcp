@@ -6,7 +6,7 @@ export { parseMemory, parseMemoryWithMeta, serializeMemory } from './markdown.js
 export {
   resolveStoreDir,
   generateId,
-  deriveId,
+  fileToId,
   deriveTitle,
   slugify,
   normalizeTags,

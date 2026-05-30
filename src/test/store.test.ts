@@ -97,16 +97,17 @@ test('delete removes the memory', () => {
   }
 });
 
-test('reads hand-dropped files from nested subfolders', () => {
+test('reads hand-dropped files from nested subfolders; id is the path', () => {
   const { store, dir } = freshStore();
   try {
     const nested = join(store.memoriesDir, 'architecture', 'db');
     mkdirSync(nested, { recursive: true });
     writeFileSync(
       join(nested, 'choice.md'),
-      '---\nid: NESTED1\ntitle: DB choice\ntags: [db]\n---\nPostgres, nested deep.\n',
+      '---\ntitle: DB choice\ntags: [db]\n---\nPostgres, nested deep.\n',
     );
-    const got = store.get('NESTED1');
+    // The id is derived from the path under memories/, using forward slashes.
+    const got = store.get('architecture/db/choice');
     assert.equal(got?.title, 'DB choice');
     assert.ok(got?.file.includes('architecture'));
     assert.equal(store.search('postgres').length, 1);
@@ -115,34 +116,46 @@ test('reads hand-dropped files from nested subfolders', () => {
   }
 });
 
-test('create --folder places file in a subfolder; update keeps it there', () => {
+test('create --folder yields a path id; update keeps path and id stable', () => {
   const { store, dir } = freshStore();
   try {
     const mem = store.create({ title: 'Routing rules', content: 'x', folder: 'Frontend/UI' });
-    assert.match(mem.file, /memories\/frontend\/ui\//);
+    assert.equal(mem.id, 'frontend/ui/routing-rules');
+    assert.equal(mem.file, 'memories/frontend/ui/routing-rules.md');
     const updated = store.update(mem.id, { title: 'New routing rules' });
-    assert.match(updated.file, /memories\/frontend\/ui\//); // stayed in place
+    assert.equal(updated.id, mem.id); // id unchanged despite new title
+    assert.equal(updated.file, mem.file); // file not renamed
     assert.equal(store.get(mem.id)?.title, 'New routing rules');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('no-frontmatter files get a stable, unique, derived id and title', () => {
+test('duplicate titles get distinct path ids, never colliding', () => {
+  const { store, dir } = freshStore();
+  try {
+    const a = store.create({ title: 'Setup', content: 'first' });
+    const b = store.create({ title: 'Setup', content: 'second' });
+    assert.equal(a.id, 'setup');
+    assert.equal(b.id, 'setup-2');
+    assert.equal(store.get('setup')?.content, 'first');
+    assert.equal(store.get('setup-2')?.content, 'second');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('no-frontmatter files get a path-based id and a title from the H1', () => {
   const { store, dir } = freshStore();
   try {
     writeFileSync(join(store.memoriesDir, 'runbook.md'), '# Deploy runbook\n\nk8s rolling.\n');
     writeFileSync(join(store.memoriesDir, 'note.md'), 'just a redis caching thought\n');
     const all = store.readAll();
-    const ids = all.map((m) => m.id);
-    assert.equal(new Set(ids).size, 2, 'ids must be unique, not all empty');
-    assert.ok(ids.every((id) => id.length > 0));
-    // Stable across reads.
-    assert.deepEqual(store.readAll().map((m) => m.id).sort(), ids.sort());
-    // Title from first H1; addressable by derived id.
-    const runbook = all.find((m) => m.file.endsWith('runbook.md'))!;
-    assert.equal(runbook.title, 'Deploy runbook');
-    assert.equal(store.get(runbook.id)?.title, 'Deploy runbook');
+    const ids = all.map((m) => m.id).sort();
+    assert.deepEqual(ids, ['note', 'runbook']); // ids are the paths, unique
+    // Title from first H1; addressable by path id.
+    assert.equal(store.get('runbook')?.title, 'Deploy runbook');
+    assert.equal(store.get('note')?.title, 'Note'); // from filename (no H1)
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -155,7 +168,8 @@ test('normalize backfills frontmatter in place without renaming', () => {
     writeFileSync(p, '# Caching strategy\n\nUse redis with TTL.\n');
     const preview = store.normalize({ write: false });
     assert.equal(preview.length, 1);
-    assert.deepEqual(preview[0].filledFields.sort(), ['created', 'id', 'title', 'updated']);
+    assert.deepEqual(preview[0].filledFields.sort(), ['created', 'title', 'updated']);
+    assert.equal(preview[0].id, 'raw-note'); // id is the path, reported as-is
     // Dry run did not touch the file.
     assert.equal(readFileSync(p, 'utf8').startsWith('# Caching'), true);
 
