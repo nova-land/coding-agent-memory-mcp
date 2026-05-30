@@ -1,0 +1,15 @@
+# Source & config — only ship the compiled dist
+src/
+scripts/
+test/
+.memory/
+.vscode/
+.claude/
+tsconfig.json
+*.tsbuildinfo
+.gitignore
+.editorconfig
+
+# Build artifacts we don't need to ship
+dist/**/*.map
+dist/test/

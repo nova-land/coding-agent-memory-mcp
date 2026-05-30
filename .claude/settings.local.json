@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm view *)",
+      "Bash(chmod +x /Users/mamaita/Documents/GitHub/memory-mcp/scripts/publish.sh /Users/mamaita/Documents/GitHub/memory-mcp/scripts/postbuild.mjs)",
+      "Bash(npm install *)"
+    ]
+  }
+}

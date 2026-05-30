@@ -1,0 +1,60 @@
+{
+  "name": "coding-agent-memory-mcp",
+  "version": "0.1.0",
+  "description": "Portable, local-first, markdown-based project memory — a Model Context Protocol (MCP) server + CLI shared across Claude Code, GitHub Copilot, Cursor, and Codex.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "claude",
+    "claude-code",
+    "copilot",
+    "cursor",
+    "codex",
+    "markdown",
+    "knowledge-base"
+  ],
+  "license": "MIT",
+  "author": "chrisleebizz",
+  "type": "module",
+  "bin": {
+    "memory-mcp": "dist/index.js",
+    "pmem": "dist/index.js"
+  },
+  "main": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/postbuild.mjs",
+    "dev": "tsc -p tsconfig.json --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "start": "node dist/index.js",
+    "serve": "node dist/index.js serve",
+    "test": "tsc -p tsconfig.test.json && node --test dist/test/*.test.js",
+    "release": "bash scripts/publish.sh"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^12.1.0",
+    "gray-matter": "^4.0.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
