@@ -32,6 +32,13 @@ export class MemoryStore {
   readonly root: string;
   readonly memoriesDir: string;
   readonly indexPath: string;
+  /**
+   * Parsed memories keyed by absolute path, reused while the file's mtime and
+   * size are unchanged. Searches then only stat files instead of re-reading and
+   * re-parsing every one, so a long-running server doesn't churn memory. Edits
+   * from other processes (or by hand) change mtime/size and are picked up.
+   */
+  private readonly parsed = new Map<string, { mtimeMs: number; size: number; memory: Memory }>();
 
   constructor(root: string) {
     this.root = root;
@@ -73,13 +80,27 @@ export class MemoryStore {
   readAll(): Memory[] {
     if (!existsSync(this.memoriesDir)) return [];
     const out: Memory[] = [];
+    const seen = new Set<string>();
     for (const abs of this.collectMarkdown(this.memoriesDir)) {
+      seen.add(abs);
       try {
+        const st = statSync(abs);
+        const hit = this.parsed.get(abs);
+        if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+          out.push(hit.memory);
+          continue;
+        }
         const raw = readFileSync(abs, 'utf8');
-        out.push(parseMemory(raw, relative(this.root, abs)));
+        const memory = parseMemory(raw, relative(this.root, abs));
+        this.parsed.set(abs, { mtimeMs: st.mtimeMs, size: st.size, memory });
+        out.push(memory);
       } catch {
         // Skip unreadable/corrupt files rather than failing the whole store.
+        this.parsed.delete(abs);
       }
+    }
+    if (this.parsed.size > seen.size) {
+      for (const abs of this.parsed.keys()) if (!seen.has(abs)) this.parsed.delete(abs);
     }
     return out;
   }

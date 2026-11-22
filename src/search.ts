@@ -28,6 +28,8 @@ export function searchMemories(
   const filterTags = (opts.tags ?? []).map((t) => t.toLowerCase());
   const limit = opts.limit ?? 20;
   const qTokens = tokenize(query);
+  // One case-insensitive matcher per query token, reused across every memory.
+  const qMatchers = qTokens.map((t) => new RegExp(t, 'gi'));
 
   const candidates = memories.filter((m) =>
     filterTags.every((t) => m.tags.includes(t)),
@@ -41,49 +43,69 @@ export function searchMemories(
       .map((m) => ({ entry: toEntry(m), score: 1, matchedOn: filterTags.length ? ['tag'] : ['all'] }));
   }
 
-  const results: SearchResult[] = [];
+  // Score every candidate without building per-memory token lists; only the
+  // returned top `limit` hits get an entry (with its excerpt) built.
+  const hits: { m: Memory; score: number; matchedOn: Set<string> }[] = [];
   for (const m of candidates) {
-    const titleLower = m.title.toLowerCase();
-    const titleTokens = new Set(tokenize(m.title));
-    const bodyTokens = countTokens(m.content);
-    const matchedOn = new Set<string>();
+    let matchedOn: Set<string> | undefined;
     let score = 0;
 
-    for (const qt of qTokens) {
-      if (titleTokens.has(qt)) {
+    for (let qi = 0; qi < qTokens.length; qi++) {
+      const qt = qTokens[qi];
+      const re = qMatchers[qi];
+      if (countWholeToken(m.title, re, qt.length, 1)) {
         score += 6;
-        matchedOn.add('title');
-      } else if (titleLower.includes(qt)) {
+        (matchedOn ??= new Set()).add('title');
+      } else if (containsToken(m.title, re)) {
         score += 3;
-        matchedOn.add('title');
+        (matchedOn ??= new Set()).add('title');
       }
       if (m.tags.includes(qt)) {
         score += 5;
-        matchedOn.add('tag');
+        (matchedOn ??= new Set()).add('tag');
       }
-      const bodyHits = bodyTokens.get(qt);
+      const bodyHits = countWholeToken(m.content, re, qt.length, 3);
       if (bodyHits) {
-        score += Math.min(bodyHits, 3);
-        matchedOn.add('body');
+        score += bodyHits;
+        (matchedOn ??= new Set()).add('body');
       }
     }
 
-    if (score > 0) {
-      results.push({ entry: toEntry(m), score, matchedOn: [...matchedOn] });
-    }
+    if (score > 0 && matchedOn) hits.push({ m, score, matchedOn });
   }
 
-  return results
-    .sort((a, b) => b.score - a.score || b.entry.updated.localeCompare(a.entry.updated))
-    .slice(0, limit);
+  return hits
+    .sort((a, b) => b.score - a.score || b.m.updated.localeCompare(a.m.updated))
+    .slice(0, limit)
+    .map((h) => ({ entry: toEntry(h.m), score: h.score, matchedOn: [...h.matchedOn] }));
 }
 
-function countTokens(text: string): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const t of tokenize(text)) {
-    map.set(t, (map.get(t) ?? 0) + 1);
+const ALNUM = /[a-z0-9]/i;
+
+/** True if `re` (a global, case-insensitive token matcher) matches anywhere in `text`. */
+function containsToken(text: string, re: RegExp): boolean {
+  re.lastIndex = 0;
+  return re.test(text);
+}
+
+/**
+ * Count whole-token occurrences of a query token (`re` matches it, `len` is its length) in
+ * `text`, case-insensitively, stopping at `cap`. Equivalent to counting it in
+ * `tokenize(text)` but without lowercasing or splitting the whole body, so a
+ * search over every memory creates almost no garbage.
+ */
+function countWholeToken(text: string, re: RegExp, len: number, cap: number): number {
+  re.lastIndex = 0;
+  let hits = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const before = m.index > 0 ? text[m.index - 1] : '';
+    const after = text[m.index + len] ?? '';
+    if (!(before && ALNUM.test(before)) && !(after && ALNUM.test(after))) {
+      if (++hits >= cap) break;
+    }
   }
-  return map;
+  return hits;
 }
 
 export function toEntry(m: Memory): IndexEntry {
