@@ -49,7 +49,10 @@ export function parseMemoryWithMeta(
   raw: string,
   file: string,
 ): { memory: Memory; derived: DerivedFields } {
-  const { data, content } = matter(raw);
+  // Pass an options object: with no options gray-matter caches every input
+  // string forever (keyed by content), which leaks memory in a long-running
+  // server — each edited file adds another permanent copy.
+  const { data, content } = matter(raw, {});
   const fm = data as Partial<MemoryFrontmatter>;
   const now = new Date().toISOString();
   const body = content.trim();
